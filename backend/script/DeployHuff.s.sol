@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {HuffDeployer, HuffConfig} from "lib/foundry-huff/src/HuffDeployer.sol";
 
 contract DeployHuff is Script {
-    // point to the new huff source under src/TSender
+
     string public constant tsenderHuffLocation = "src/TSender";
 
     function run() public {
