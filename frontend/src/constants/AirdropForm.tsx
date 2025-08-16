@@ -6,6 +6,7 @@ import { chainsToTSender, erc20Abi, tsenderAbi } from "@/lib/constants";
 import { getChainId } from "@wagmi/core";
 import { config as wagmiConfig } from "@/config";
 import { readContract } from "@wagmi/core";
+import { useAccount } from "wagmi";
 
 const AirdropForm: React.FC = () => {
   const [tokenAddress, setTokenAddress] = useState<string>("");
@@ -14,6 +15,7 @@ const AirdropForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const chainId = getChainId(wagmiConfig);
+  const account = useAccount();
 
   const sharedInputClass =
     "w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 shadow-sm transition-colors duration-150 focus:outline-none focus:ring-0 focus:border-transparent";
@@ -36,10 +38,20 @@ const AirdropForm: React.FC = () => {
     e.preventDefault();
 
     const senderAddr = chainsToTSender[chainId]["tsender"];
+    const approvedAmount = getApproval(senderAddr);
+
+    console.log(senderAddr, approvedAmount);
   };
 
-  async function getApproval(senderAddress: string): Promise<Number> {
-    return 0;
+  async function getApproval(senderAddress: string): Promise<number> {
+    const response = await readContract(wagmiConfig, {
+      address: tokenAddress as `0x${string}`,
+      abi: erc20Abi,
+      functionName: "allowance",
+      args: [account.address, senderAddress],
+    });
+
+    return Number(response);
   }
 
   return (
