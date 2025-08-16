@@ -1,0 +1,212 @@
+/* Full Huff implementation of TSender based on the provided Yul-inspired macros.
+   This file was constructed from the code you provided and organized into a single Huff source.
+
+   Note: This is a direct transcription of the logic you supplied. If compilation errors appear
+   when running `forge build` with foundry-huff, I'll iterate—Huff syntax can be picky and
+   the foundry-huff toolchain must have the Huff compiler (huffc) available.
+*/
+
+#define function airdropERC20(address,address[],uint256[],uint256) nonpayable returns()
+#define function areListsValid(address[],uint256[]) pure returns (bool)
+
+/* Memory Locations */
+#define constant TO_ADDRESS_MEMORY_LOCATION = 0x20
+#define constant AMOUNT_MEMORY_LOCATION = 0x40
+
+/* Calldata Offsets */
+#define constant TOKEN_ADDRESS_OFFSET = 0x04
+#define constant NUMBER_OF_RECIPIENTS_OFFSET_OFFSET = 0x24
+#define constant NUMBER_OF_AMOUNTS_OFFSET_OFFSET = 0x44
+#define constant TOTAL_AMOUNT_OFFSET = 0x64
+
+/* Constants */
+#define constant TWENTY_EIGHT = 0x1c
+
+/* AIRDROP_ERC20 implementation (transcribed) */
+#define macro AIRDROP_ERC20() = takes (0) returns (0) {
+    // check for equal lengths and prepare stack
+    0x00                                                        
+    [TOKEN_ADDRESS_OFFSET] calldataload                         
+    [NUMBER_OF_RECIPIENTS_OFFSET_OFFSET] calldataload           
+    0x4 add                                                     
+    [NUMBER_OF_AMOUNTS_OFFSET_OFFSET] calldataload              
+    0x4 add                                                     
+
+    // diff = sub(recipients.offset, amounts.offset)
+    dup1 dup3 sub         
+    swap2                 
+    dup1 0x20 add         
+
+    // end = add(address_one_offset, shl(5, recipients.length))
+    dup2 calldataload     
+    0x5 shl               
+    dup2 add              
+    swap3                 
+    calldataload          
+
+    // address_one_offset, amounts.length, recipients.length, etc
+    swap1                 
+    swap2                 
+    calldataload          
+
+    eq
+    lengths_match jumpi
+        // revert TSender__LengthsDontMatch()
+        0x50a302d6 0x00 mstore
+        0x04 [TWENTY_EIGHT] revert
+
+    lengths_match:
+    // prepare transferFrom calldata in memory
+    0x23b872dd 0x00 mstore
+    caller 0x20 mstore
+    address 0x40 mstore
+    [TOTAL_AMOUNT_OFFSET] calldataload 0x60 mstore
+
+    // call transferFrom(msg.sender, address(this), totalAmount)
+    0x00 0x00
+    0x64 [TWENTY_EIGHT]
+    0x00 [TOKEN_ADDRESS_OFFSET] calldataload
+    gas call
+    transfer_from_didnt_fail jumpi
+        0xfa10ea06 0x00 mstore
+        0x04 [TWENTY_EIGHT] revert
+
+    transfer_from_didnt_fail:
+    // prepare transfer selector in memory
+    0xa9059cbb 0x00 mstore
+
+    // Setup offsets for loop
+    [NUMBER_OF_RECIPIENTS_OFFSET_OFFSET] calldataload
+    0x4 add
+    [TOKEN_ADDRESS_OFFSET] calldataload
+
+    [NUMBER_OF_AMOUNTS_OFFSET_OFFSET] calldataload
+    0x4 add
+    dup3 sub
+    dup3 0x20 add
+
+    dup4 calldataload
+    0x5 shl dup2 add
+    swap1
+
+    // loop over recipients
+    loop_start:
+        dup3
+        dup2 dup1
+        calldataload [TO_ADDRESS_MEMORY_LOCATION] mstore
+        sub calldataload [AMOUNT_MEMORY_LOCATION] mstore
+
+        // addedAmount update: we keep running total in stack slot
+        dup6
+        add
+        swap5
+        pop
+
+        // call transfer(to, amount)
+        0x00 0x00 0x44 [TWENTY_EIGHT] 0x00 dup9 gas call
+        transfer_didnt_fail jumpi
+            0xfa10ea06 0x00 mstore
+            0x04 [TWENTY_EIGHT] revert
+
+        transfer_didnt_fail:
+        0x20 add
+        dup2 dup2
+        lt loop_start jumpi
+
+    // After loop: check totals
+    [TOTAL_AMOUNT_OFFSET] calldataload
+    dup6 eq iszero total_doesnt_add_up jumpi
+    stop
+
+    total_doesnt_add_up:
+        0x63b62563 0x00 mstore
+        0x04 [TWENTY_EIGHT] revert
+
+    transfer_from_didnt_fail:
+    stop
+}
+
+/* ARE_LISTS_VALID implementation (transcribed) */
+#define macro ARE_LISTS_VALID() = takes (0) returns (0) {
+    [RECIPIENTS_OFFSET_OFFSET] calldataload
+    0x4 add
+    calldataload
+    dup1
+    dup1
+    0x00 eq return_false jumpi
+
+    [AMOUNTS_OFFSET_OFFSET] calldataload
+    0x04 add
+    calldataload
+    eq iszero return_false jumpi
+
+    0x00
+    dup2 dup2
+
+    outer_loop_start:
+        eq return_true jumpi
+
+        // zero address check
+        dup1
+        0x20 mul
+        [RECIPIENTS_OFFSET_OFFSET] calldataload 0x24 add add
+        calldataload
+        dup1
+        iszero return_false jumpi
+
+        // zero amount check
+        dup2
+        0x20 mul
+        [AMOUNTS_OFFSET_OFFSET] calldataload
+        0x24 add
+        add calldataload
+        iszero return_false jumpi
+
+        dup2 0x01 add
+
+        inner_loop_start:
+            dup1 dup5
+            eq inner_loop_end jumpi
+            dup1
+            0x20 mul
+            [RECIPIENTS_OFFSET_OFFSET] calldataload 0x24 add add
+            calldataload
+            dup3
+            eq return_false jumpi
+            0x01 add
+            inner_loop_start jump
+
+            inner_loop_end:
+                pop pop
+                0x01 add
+                dup2 dup2
+                outer_loop_start jump
+
+    return_true:
+        0x01 0x00 mstore
+        0x20 0x00 return
+
+    return_false:
+        0x00 0x00 mstore
+        0x20 0x00 return
+}
+
+/* MAIN dispatcher */
+#define macro MAIN() = takes (0) returns (0) {
+    // revert if msg.value != 0
+    callvalue endcall jumpi
+
+    0x00 calldataload 0xE0 shr
+    __FUNC_SIG(airdropERC20) eq airdropERC20 jumpi
+    0x00 calldataload 0xE0 shr
+    __FUNC_SIG(areListsValid) eq areListsValid jumpi
+
+    endcall:
+        0x00 0x00 revert
+
+    airdropERC20:
+        AIRDROP_ERC20()
+
+    areListsValid:
+        ARE_LISTS_VALID()
+}
