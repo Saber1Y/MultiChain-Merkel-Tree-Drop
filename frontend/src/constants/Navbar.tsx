@@ -49,10 +49,10 @@ export default function Navbar() {
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-3 group">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 via-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg group-hover:shadow-blue-500/25 transition-all duration-300 group-hover:scale-105">
-                <span className="text-sm font-black">TS</span>
+                <span className="text-sm font-black">MK</span>
               </div>
               <span className="text-2xl font-bold tracking-tight bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent group-hover:from-blue-400 group-hover:to-purple-400 transition-all duration-300">
-                TSender
+                MerkleDropper
               </span>
             </Link>
 
