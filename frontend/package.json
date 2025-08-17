@@ -16,6 +16,7 @@
     "@wagmi/connectors": "^5.9.3",
     "@wagmi/core": "^2.19.0",
     "clsx": "^2.1.1",
+    "ethers": "^6.15.0",
     "lucide-react": "^0.539.0",
     "motion": "^12.23.12",
     "next": "15.4.6",

@@ -1,3 +1,5 @@
+
+
 /* Full Huff implementation of TSender based on the provided Yul-inspired macros.
    This file was constructed from the code you provided and organized into a single Huff source.
 
@@ -18,10 +20,6 @@
 #define constant NUMBER_OF_RECIPIENTS_OFFSET_OFFSET = 0x24
 #define constant NUMBER_OF_AMOUNTS_OFFSET_OFFSET = 0x44
 #define constant TOTAL_AMOUNT_OFFSET = 0x64
-
-// aliases expected by some macros — use literal values (huffc requires literals)
-#define constant RECIPIENTS_OFFSET_OFFSET = 0x24
-#define constant AMOUNTS_OFFSET_OFFSET = 0x44
 
 /* Constants */
 #define constant TWENTY_EIGHT = 0x1c

@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { PlaceholdersAndVanishInput } from "@/component/ui/placeholders-and-vanish-input";
 import { chainsToTSender, erc20Abi, tsenderAbi } from "@/lib/constants";
 import { getChainId } from "@wagmi/core";
-import { config as wagmiConfig } from "@/config";
+import { config } from "@/config";
 import { readContract } from "@wagmi/core";
 import { useAccount } from "wagmi";
 
@@ -14,7 +14,7 @@ const AirdropForm: React.FC = () => {
   const [amountData, setAmountData] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const chainId = getChainId(wagmiConfig);
+  const chainId = getChainId(config);
   const account = useAccount();
 
   const sharedInputClass =
@@ -34,25 +34,115 @@ const AirdropForm: React.FC = () => {
     return { recipients, amounts };
   }, [recipientData, amountData]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ...existing code...
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+    setIsLoading(true);
 
-    const senderAddr = chainsToTSender[chainId]["tsender"];
-    const approvedAmount = getApproval(senderAddr);
+    try {
+      if (!account || !account.address) throw new Error("Connect wallet first");
+      if (!chainId) throw new Error("Unknown chain. Switch your network.");
+      const mapping = chainsToTSender[chainId];
+      if (!mapping || !mapping.tsender)
+        throw new Error("No TSender configured for this network");
 
-    console.log(senderAddr, approvedAmount);
+      const tsenderAddress = mapping.tsender;
+      const ercAbiResolved =
+        Array.isArray(erc20Abi) && (erc20Abi as any)[0]?.abi
+          ? (erc20Abi as any)[0].abi
+          : (erc20Abi as any);
+      const tsenderAbiResolved =
+        Array.isArray(tsenderAbi) && (tsenderAbi as any)[0]?.abi
+          ? (tsenderAbi as any)[0].abi
+          : (tsenderAbi as any);
+
+      // simple parsed arrays from memo
+      const { recipients, amounts } = parsedData;
+      if (recipients.length === 0) throw new Error("No recipients provided");
+      if (recipients.length !== amounts.length)
+        throw new Error("Recipients and amounts length mismatch");
+
+      // convert amounts (assumes amounts are already in wei strings; if not, use parseUnits)
+      const bnAmounts = amounts.map((a) => (a.startsWith("0x") ? a : a)); // keep as string (ethers.BigNumber will accept)
+      const totalAmount = bnAmounts.reduce(
+        (acc, a) => acc + BigInt(a),
+        BigInt(0)
+      );
+
+      // check allowance using wagmi readContract
+      const allowance = await readContract(config, {
+        address: tokenAddress as `0x${string}`,
+        abi: ercAbiResolved,
+        functionName: "allowance",
+        args: [account.address, tsenderAddress],
+      });
+      const allowanceBn = BigInt((allowance as unknown as bigint) || 0n);
+      if (allowanceBn < totalAmount)
+        throw new Error(
+          "TSender not approved for total amount. Call approve on token first."
+        );
+
+      // validate lists
+      const listsValid = await readContract(config, {
+        address: tsenderAddress as `0x${string}`,
+        abi: tsenderAbiResolved,
+        functionName: "areListsValid",
+        args: [recipients, amounts],
+      });
+      if (!listsValid)
+        throw new Error(
+          "Recipients/amounts list invalid according to contract"
+        );
+
+      // call airdrop via ethers signer
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { ethers } = require("ethers");
+      if (!window.ethereum) throw new Error("No web3 provider");
+      const provider = new ethers.providers.Web3Provider(
+        window.ethereum as any
+      );
+      const signer = provider.getSigner();
+      const tsenderContract = new ethers.Contract(
+        tsenderAddress,
+        tsenderAbiResolved,
+        signer
+      );
+
+      const tx = await tsenderContract.airdropERC20(
+        tokenAddress,
+        recipients,
+        amounts,
+        totalAmount.toString()
+      );
+      console.log("Broadcasted tx:", tx.hash);
+      await tx.wait();
+      console.log("Airdrop complete", tx.hash);
+    } catch (err: any) {
+      console.error(err);
+      setErrors({ submit: err.message || String(err) });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  async function getApproval(senderAddress: string): Promise<number> {
-    const response = await readContract(wagmiConfig, {
+  async function getApproval(senderAddress: string): Promise<bigint> {
+    const ercAbiResolved =
+      Array.isArray(erc20Abi) && (erc20Abi as any)[0]?.abi
+        ? (erc20Abi as any)[0].abi
+        : (erc20Abi as any);
+    if (!account.address) {
+      throw new Error("Wallet address is undefined");
+    }
+    const response = await readContract(config, {
       address: tokenAddress as `0x${string}`,
-      abi: erc20Abi,
+      abi: ercAbiResolved,
       functionName: "allowance",
-      args: [account.address, senderAddress],
+      args: [account.address as `0x${string}`, senderAddress],
     });
-
-    return Number(response);
+    return BigInt((response as unknown as bigint) || BigInt("0"));
   }
+  // ...existing code...
 
   return (
     <div className="max-w-2xl mx-auto mt-20 p-6">

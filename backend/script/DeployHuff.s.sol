@@ -6,14 +6,14 @@ import {HuffDeployer, HuffConfig} from "lib/foundry-huff/src/HuffDeployer.sol";
 
 contract DeployHuff is Script {
 
-    string public constant tsenderHuffLocation = "src/TSender";
+    string public constant tsenderHuffLocation = "TSender/TSender";
 
     function run() public {
-        HuffConfig huffConfig = HuffDeployer.config();
+        // Create a HuffConfig that will broadcast internally. This avoids using vm.prank during a
+        // broadcasted transaction which Foundry disallows.
+        HuffConfig huffConfig = HuffDeployer.config().set_broadcast(true);
 
-        vm.startBroadcast();
         address huffTSender = deployHuff(huffConfig);
-        vm.stopBroadcast();
 
         console2.log("TSender Huff deployed to:", huffTSender);
     }
